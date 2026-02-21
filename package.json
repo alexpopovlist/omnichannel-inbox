@@ -14,7 +14,8 @@
     "prisma:migrate:dev": "node ./node_modules/prisma/build/index.js migrate dev",
     "prisma:migrate:deploy": "node ./node_modules/prisma/build/index.js migrate deploy",
     "prisma:studio": "node ./node_modules/prisma/build/index.js studio",
-    "dev:pg": "npm run prisma:generate && npm run prisma:migrate:dev && npm run dev"
+    "dev:pg": "npm run prisma:generate && npm run prisma:migrate:dev && npm run dev",
+    "prestart": "npm run build"
   },
   "dependencies": {
     "@prisma/client": "^5.19.1",
