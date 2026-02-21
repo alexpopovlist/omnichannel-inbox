@@ -1,0 +1,33 @@
+{
+  "name": "omnichannel-inbox",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node ./node_modules/tsx/dist/cli.mjs watch src/index.ts",
+    "dev:local": "npm run prisma:generate && npm run prisma:migrate:dev && npm run dev",
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "eslint .",
+    "prisma:generate": "node ./node_modules/prisma/build/index.js generate",
+    "prisma:db:push": "node ./node_modules/prisma/build/index.js db push",
+    "prisma:migrate:dev": "node ./node_modules/prisma/build/index.js migrate dev",
+    "prisma:migrate:deploy": "node ./node_modules/prisma/build/index.js migrate deploy",
+    "prisma:studio": "node ./node_modules/prisma/build/index.js studio",
+    "dev:pg": "npm run prisma:generate && npm run prisma:migrate:dev && npm run dev"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.1",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.28.1",
+    "fastify-raw-body": "^4.3.0",
+    "pino": "^9.3.2",
+    "zod": "^3.23.8",
+    "prisma": "^5.19.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "@types/node": "^22.5.2",
+    "eslint": "^9.9.1"
+  },
+  "devDependencies": {}
+}

@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MessageDirection {
+  inbound
+  outbound
+}
+
+model ChannelAccount {
+  id                String   @id @default(uuid())
+  channel           String
+  accountName       String
+  externalAccountId String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  conversations Conversation[]
+
+  @@index([channel])
+  @@unique([channel, accountName])
+}
+
+model Conversation {
+  id               String   @id @default(uuid())
+  channel          String
+  accountId        String
+  externalThreadId String
+  externalUserId   String
+  username         String?
+  phone            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  account   ChannelAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  messages  Message[]
+
+  @@index([channel, updatedAt])
+  @@index([accountId, externalThreadId])
+  @@unique([accountId, externalThreadId])
+}
+
+model Message {
+  id                String           @id @default(uuid())
+  conversationId    String
+  direction         MessageDirection
+  messageType       String
+  text              String?
+  payload           Json?
+  externalMessageId String
+  sentAt            DateTime
+  receivedAt        DateTime         @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, sentAt(sort: Desc)])
+  @@unique([conversationId, externalMessageId])
+}
