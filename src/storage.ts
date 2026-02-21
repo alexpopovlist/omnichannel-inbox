@@ -1,6 +1,6 @@
 import { prisma } from "./prisma.js";
 import { NormalizedMessage } from "./types.js";
-import { MessageDirection } from "@prisma/client";
+import { MessageDirection, Prisma } from "@prisma/client";
 
 export async function ensureAccount(channel: string, accountName: string, externalAccountId?: string | null) {
   return prisma.channelAccount.upsert({
@@ -36,6 +36,10 @@ export async function upsertConversation(m: NormalizedMessage) {
 export async function insertMessage(conversationId: string, m: NormalizedMessage) {
   const direction: MessageDirection = m.direction === "inbound" ? "inbound" : "outbound";
 
+  // Prisma JSON fields expect Prisma.InputJsonValue; our NormalizedMessage.payload is intentionally loose.
+  // We cast here (payload is already JSON-serializable in all supported channel adapters).
+  const payload = (m.payload ?? undefined) as Prisma.InputJsonValue | undefined;
+
   // idempotent insert using unique constraint (conversationId, externalMessageId)
   return prisma.message.upsert({
     where: { conversationId_externalMessageId: { conversationId, externalMessageId: m.externalMessageId } },
@@ -44,14 +48,14 @@ export async function insertMessage(conversationId: string, m: NormalizedMessage
       direction,
       messageType: m.messageType,
       text: m.text ?? null,
-      payload: m.payload ?? undefined,
+      payload,
       externalMessageId: m.externalMessageId,
       sentAt: m.sentAt,
     },
     update: {
       // If duplicate arrives, we do nothing meaningful
       text: m.text ?? undefined,
-      payload: m.payload ?? undefined,
+      payload,
       sentAt: m.sentAt,
     },
   });
