@@ -373,7 +373,9 @@ app.get("/", async (_req, reply) => {
         const prev = btn.textContent;
         btn.textContent = 'Sync…';
         try{
-          await api('/sync/instagram/conversations', { method:'POST' });
+          // Our api() helper always sets Content-Type: application/json.
+          // Fastify returns 400 if a JSON request has an empty body, so we send an empty JSON object.
+          await api('/sync/instagram/conversations', { method:'POST', body: '{}' });
           state.convCursor=null;
           await loadConversations({append:false});
         }catch(e){
