@@ -33,6 +33,111 @@ app.get("/debug/instagram/env-check", async (_req, reply) => {
   }
 });
 
+// Sync Instagram conversations + messages from Meta Graph API into DB.
+// Triggered from the minimal UI on "/" when Instagram channel is selected.
+app.post("/sync/instagram/conversations", async (_req, reply) => {
+  try {
+    const pageCompanyId = env.INSTAGRAM_PAGE_COMPANY_ID;
+    if (!pageCompanyId) {
+      return reply.code(400).send({ ok: false, error: "INSTAGRAM_PAGE_COMPANY_ID is missing" });
+    }
+    const token = env.INSTAGRAM_PAGE_ACCESS_TOKEN;
+    if (!token) {
+      return reply.code(400).send({ ok: false, error: "INSTAGRAM_PAGE_ACCESS_TOKEN is missing" });
+    }
+
+    const version = env.META_GRAPH_VERSION || "v25.0";
+    const url = new URL(`https://graph.facebook.com/${version}/${pageCompanyId}/conversations`);
+    url.searchParams.set("fields", "id,updated_time,participants,unread_count,messages{message,from,id,to,created_time}");
+    url.searchParams.set("limit", "50");
+    url.searchParams.set("platform", "instagram");
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return reply.code(res.status).send({ ok: false, error: data });
+    }
+
+    const conversations = Array.isArray((data as any)?.data) ? (data as any).data : [];
+
+    const parseMetaTime = (v: any) => {
+      if (!v) return new Date();
+      const s = String(v);
+      // Meta often returns "2026-02-22T22:41:12+0000" (no colon in tz).
+      const fixed = s
+        .replace(/\+0000$/, "Z")
+        .replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
+      const d = new Date(fixed);
+      return isNaN(d.getTime()) ? new Date() : d;
+    };
+    let convUpserted = 0;
+    let msgUpserted = 0;
+
+    for (const c of conversations) {
+      const participants = Array.isArray(c?.participants?.data) ? c.participants.data : [];
+      const messages = Array.isArray(c?.messages?.data) ? c.messages.data : [];
+
+      const selfIgId = env.INSTAGRAM_IG_USER_ID || "";
+
+      // pick "other" participant to show in UI and to use as default recipient
+      const other = participants.find((p: any) => (selfIgId ? String(p?.id) !== selfIgId : true)) || participants[0] || null;
+      const otherId = other?.id ? String(other.id) : "unknown";
+      const otherUsername = other?.username ? String(other.username) : null;
+
+      const conv = await upsertConversation({
+        channel: "instagram",
+        accountName: "main",
+        externalAccountId: pageCompanyId,
+        externalThreadId: String(c?.id ?? "unknown"),
+        externalUserId: otherId,
+        username: otherUsername,
+        phone: null,
+        externalMessageId: `ig:sync:conv:${String(c?.id ?? "unknown")}`,
+        direction: "inbound",
+        messageType: "sync_marker",
+        text: null,
+        payload: null,
+        sentAt: parseMetaTime(c?.updated_time),
+      });
+      convUpserted++;
+
+      // Upsert each message inside conversation
+      for (const m of messages) {
+        const fromId = String(m?.from?.id ?? "unknown");
+        const direction = selfIgId && fromId === selfIgId ? ("outbound" as const) : ("inbound" as const);
+
+        const sentAt = parseMetaTime(m?.created_time);
+        await insertMessage(conv.id, {
+          channel: "instagram",
+          accountName: "main",
+          externalAccountId: pageCompanyId,
+          externalThreadId: String(c?.id ?? "unknown"),
+          externalUserId: otherId,
+          username: otherUsername,
+          phone: null,
+          externalMessageId: String(m?.id ?? `ig:sync:${Date.now()}:${Math.random()}`),
+          direction,
+          messageType: "text",
+          text: m?.message ? String(m.message) : null,
+          payload: { raw: m },
+          sentAt,
+        });
+        msgUpserted++;
+      }
+    }
+
+    return reply.send({ ok: true, conversations: convUpserted, messages: msgUpserted });
+  } catch (e: any) {
+    return reply.code(500).send({ ok: false, error: e?.message || "Unknown error" });
+  }
+});
+
 // Minimal web UI (no build step) for browsing conversations & messages.
 // Open: http://localhost:8080/
 app.get("/", async (_req, reply) => {
@@ -98,6 +203,7 @@ app.get("/", async (_req, reply) => {
           </div>
           <div class="controls">
             <button id="reload" class="primary">Reload</button>
+            <button id="syncIg" class="primary" style="display:none">Синхронизировать диалоги</button>
             <button id="loadMore">More</button>
           </div>
         </header>
@@ -260,10 +366,36 @@ app.get("/", async (_req, reply) => {
       }
 
       $('reload').onclick = () => { state.convCursor=null; loadConversations({append:false}).catch(e=>showError(e.message)); };
+      $('syncIg').onclick = async () => {
+        showError('');
+        const btn = $('syncIg');
+        btn.disabled = true;
+        const prev = btn.textContent;
+        btn.textContent = 'Sync…';
+        try{
+          await api('/sync/instagram/conversations', { method:'POST' });
+          state.convCursor=null;
+          await loadConversations({append:false});
+        }catch(e){
+          showError('Sync failed: ' + e.message);
+        }finally{
+          btn.disabled = false;
+          btn.textContent = prev;
+        }
+      };
       $('loadMore').onclick = () => loadConversations({append:true}).catch(e=>showError(e.message));
       $('send').onclick = () => send();
       $('q').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ state.convCursor=null; loadConversations({append:false}).catch(er=>showError(er.message)); }});
-      $('channel').onchange = () => { state.convCursor=null; loadConversations({append:false}).catch(e=>showError(e.message)); };
+      function updateIgSyncVisibility(){
+        const ch = $('channel').value;
+        $('syncIg').style.display = ch === 'instagram' ? 'inline-flex' : 'none';
+      }
+
+      $('channel').onchange = () => {
+        updateIgSyncVisibility();
+        state.convCursor=null;
+        loadConversations({append:false}).catch(e=>showError(e.message));
+      };
       $('text').addEventListener('keydown', (e)=>{
         if((e.ctrlKey || e.metaKey) && e.key==='Enter'){ send(); }
       });
@@ -277,6 +409,7 @@ app.get("/", async (_req, reply) => {
       });
 
       loadConversations({append:false}).catch(e=>showError(e.message));
+      updateIgSyncVisibility();
     </script>
   </body>
 </html>`;

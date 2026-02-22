@@ -21,6 +21,15 @@ export const env = {
   INSTAGRAM_APP_SECRET: process.env.INSTAGRAM_APP_SECRET || "",
 
   INSTAGRAM_PAGE_ACCESS_TOKEN: process.env.INSTAGRAM_PAGE_ACCESS_TOKEN || "",
+  // Meta "Page" id used for some APIs / debug (optional)
   INSTAGRAM_PAGE_ID: process.env.INSTAGRAM_PAGE_ID || "",
+
+  // Required for conversations sync endpoint:
+  // https://graph.facebook.com/<version>/<INSTAGRAM_PAGE_COMPANY_ID>/conversations?...&platform=instagram
+  INSTAGRAM_PAGE_COMPANY_ID: process.env.INSTAGRAM_PAGE_COMPANY_ID || "",
+
+  // Optional: helps determine inbound/outbound when syncing conversations.
+  // If set, messages with from.id === INSTAGRAM_IG_USER_ID are treated as outbound.
+  INSTAGRAM_IG_USER_ID: process.env.INSTAGRAM_IG_USER_ID || "",
   META_GRAPH_VERSION: process.env.META_GRAPH_VERSION || "v25.0",
 };
