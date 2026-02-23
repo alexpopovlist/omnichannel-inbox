@@ -36,15 +36,21 @@ export async function instagramSendMessage(recipientId: string, text: string) {
   if (!env.INSTAGRAM_PAGE_ACCESS_TOKEN) {
     throw new Error("INSTAGRAM_PAGE_ACCESS_TOKEN is not set");
   }
+  if (!env.INSTAGRAM_PAGE_COMPANY_ID) {
+    throw new Error("INSTAGRAM_PAGE_COMPANY_ID is not set");
+  }
   const version = env.META_GRAPH_VERSION || "v25.0";
-  const url = new URL(`https://graph.facebook.com/${version}/me/messages`);
+  // Requested endpoint:
+  // POST https://graph.facebook.com/v25.0/<INSTAGRAM_PAGE_COMPANY_ID>/messages
+  // JSON body: { recipient:{id}, message:{text} }
+  // access_token passed as urlencoded/query param
+  const url = new URL(`https://graph.facebook.com/${version}/${env.INSTAGRAM_PAGE_COMPANY_ID}/messages`);
   url.searchParams.set("access_token", env.INSTAGRAM_PAGE_ACCESS_TOKEN);
 
   const res = await fetch(url.toString(), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      messaging_type: "RESPONSE",
       recipient: { id: recipientId },
       message: { text },
     }),

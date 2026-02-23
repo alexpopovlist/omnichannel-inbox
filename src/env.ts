@@ -31,5 +31,10 @@ export const env = {
   // Optional: helps determine inbound/outbound when syncing conversations.
   // If set, messages with from.id === INSTAGRAM_IG_USER_ID are treated as outbound.
   INSTAGRAM_IG_USER_ID: process.env.INSTAGRAM_IG_USER_ID || "",
+
+  // Optional (but requested by UI flow): default recipient id for Instagram outbound messages.
+  // If set, /messages/send for instagram will send to this id.
+  // If empty, we'll fall back to conversation.externalUserId.
+  INSTAGRAM_RECIPIENT_ID: process.env.INSTAGRAM_RECIPIENT_ID || "",
   META_GRAPH_VERSION: process.env.META_GRAPH_VERSION || "v25.0",
 };

@@ -589,15 +589,17 @@ app.post("/messages/send", async (req, reply) => {
 
 
 if (conv.channel === "instagram") {
-  // For Instagram, we reply to externalUserId (usually sender.id from webhook)
-  await instagramSendMessage(conv.externalUserId, text);
+  // For Instagram, requested flow uses a fixed recipient id from env (participants).
+  // If not set, fall back to conversation.externalUserId.
+  const recipientId = env.INSTAGRAM_RECIPIENT_ID || conv.externalUserId;
+  await instagramSendMessage(recipientId, text);
 
   const outbound = {
     channel: "instagram",
     accountName: "main",
-    externalAccountId: null,
+    externalAccountId: env.INSTAGRAM_PAGE_COMPANY_ID || null,
     externalThreadId: conv.externalThreadId,
-    externalUserId: conv.externalUserId,
+    externalUserId: recipientId,
     username: conv.username,
     phone: conv.phone,
     externalMessageId: `ig:out:${conv.externalThreadId}:${Date.now()}`,
