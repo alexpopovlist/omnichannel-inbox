@@ -589,9 +589,34 @@ app.post("/messages/send", async (req, reply) => {
 
 
 if (conv.channel === "instagram") {
-  // For Instagram, requested flow uses a fixed recipient id from env (participants).
-  // If not set, fall back to conversation.externalUserId.
-  const recipientId = env.INSTAGRAM_RECIPIENT_ID || conv.externalUserId;
+  // Instagram recipient resolution:
+  // 1) If INSTAGRAM_RECIPIENT_ID is set -> use it (explicit override as requested).
+  // 2) Otherwise, try to infer recipient from latest inbound message payload (raw.from.id).
+  //    This is the most reliable for Messenger API for Instagram.
+  // 3) Fallback to conversation.externalUserId.
+  let recipientId = env.INSTAGRAM_RECIPIENT_ID || "";
+
+  if (!recipientId) {
+    const lastInbound = await prisma.message.findFirst({
+      where: { conversationId: conv.id, direction: "inbound" },
+      orderBy: { sentAt: "desc" },
+      select: { payload: true },
+    });
+    const fromId = (lastInbound as any)?.payload?.raw?.from?.id;
+    if (fromId) recipientId = String(fromId);
+  }
+
+  if (!recipientId) {
+    recipientId = conv.externalUserId;
+  }
+
+  if (!recipientId || recipientId === "unknown") {
+    return reply.code(400).send({
+      ok: false,
+      error:
+        "Instagram recipientId not resolved. Set INSTAGRAM_RECIPIENT_ID or INSTAGRAM_IG_USER_ID (to store correct participant during sync).",
+    });
+  }
   await instagramSendMessage(recipientId, text);
 
   const outbound = {
